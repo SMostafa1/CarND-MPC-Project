@@ -91,16 +91,62 @@ int main() {
           double py = j[1]["y"];
           double psi = j[1]["psi"];
           double v = j[1]["speed"];
-
+          double steer_value = j[1]["steering_angle"];
+double throttle_value = j[1]["throttle"];
           /*
           * TODO: Calculate steering angle and throttle using MPC.
           *
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+					for(int i=0;i<ptsx.size();i++)
+					{
+double shift_x=ptsx[i]-px;
+						double shift_y=ptsy[i]-py;
 
+						ptsx[i]=shift_x *cos(-psi) - shift_y * sin(-psi);
+						ptsy[i]=shift_x *sin(-psi) + shift_y * cos(-psi);
+					}
+
+					double* ptrx=&ptsx[0];
+					Eigen::Map<Eigen::VectorXd> ptsx_transform(ptrx,6);
+
+
+					double* ptry=&ptsy[0];
+					Eigen::Map<Eigen::VectorXd> ptsy_transform(ptry,6);
+
+					auto coeffs=polyfit(ptsx_transform,ptsy_transform,3);
+
+					double cte=polyeval(coeffs,0);
+
+					double epsi=-atan(coeffs[1]);
+
+
+					double Lf=2.67;
+					double dt=0.1;
+
+			          double px_pred = v * dt;
+			          double py_pred = 0;
+			          double psi_pred = - v * steer_value * dt / Lf;
+			          double v_pred = v + throttle_value * dt;
+			          double cte_pred = cte + v * sin(epsi) * dt;
+			          double epsi_pred = epsi + psi_pred;
+
+
+
+
+
+					Eigen::VectorXd state(6);
+
+					state<<px_pred,py_pred,psi_pred,v_pred,cte_pred,epsi_pred;
+
+
+
+
+					auto vars=mpc.Solve(state,coeffs);
+
+					steer_value= -1 * vars[0]/(deg2rad(25));
+throttle_value=vars[1];
           json msgJson;
           // NOTE: Remember to divide by deg2rad(25) before you send the steering value back.
           // Otherwise the values will be in between [-deg2rad(25), deg2rad(25] instead of [-1, 1].
