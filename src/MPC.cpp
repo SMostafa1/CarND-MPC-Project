@@ -22,7 +22,7 @@ double dt = 0.1;
 const double Lf = 2.67;
 
 //Set the reference parameter for velocity ref_velocity.
-double ref_v = 50;
+double ref_v = 70;
 
 size_t x_start = 0;
 size_t y_start = x_start + N;
@@ -48,14 +48,22 @@ class FG_eval {
     // the Solver function below.
    //Set the total cost to zero at the beginning of each iteration.
     fg[0] = 0;
+        int w_cte=3000;
+		int w_epsi=3000;
+		int w_v=1;
 
+		int w_delta=5;
+		int w_a=5;
+
+		int w_delta_2=200;
+		int w_a_2=10;
     
     //Add cost functions and parameters here:
     // Highest weight to reducing cte and epsi
     unsigned int t;
     for (t = 0; t < N; t++) {
-      fg[0] += 200*CppAD::pow(vars[t + cte_start], 2);
-      fg[0] += 50*CppAD::pow(vars[t + epsi_start], 2);
+      fg[0] += w_cte*CppAD::pow(vars[t + cte_start], 2);
+      fg[0] += w_epsi*CppAD::pow(vars[t + epsi_start], 2);
 
       //To maintain velocity and does not stop.
       fg[0] += CppAD::pow(vars[v_start + t] - ref_v, 2);
@@ -63,18 +71,18 @@ class FG_eval {
 
     //Add initial a and delta values to the cost calculation
     for (t = 0; t < N - 1; t++) {
-      fg[0] += 100*CppAD::pow(vars[t + delta_start], 2);
-      fg[0] += 20*CppAD::pow(vars[t + a_start], 2);
+      fg[0] += w_delta*CppAD::pow(vars[delta_start + t], 2);
+	  fg[0] += w_a*CppAD::pow(vars[a_start + t], 2);
 
    //reduce speed at turns and increase on straight road
-  // fg[0] += 700*CppAD::pow((vars[t + v_start] * vars[t + delta_start]), 2);
+   fg[0] += 700*CppAD::pow((vars[t + v_start] * vars[t + delta_start]), 2);
 
     }	
     // High weight to change in actuator inputs
     // Minimize the value gap between sequential actuations.
     for (t = 0; t < N - 2; t++) {
-      fg[0] += CppAD::pow(vars[t + 1 + delta_start] - vars[t + delta_start], 2);
-      fg[0] += CppAD::pow(vars[t + 1 + a_start] - vars[t + a_start], 2);
+      fg[0] += w_delta_2*CppAD::pow(vars[delta_start + t + 1] - vars[delta_start + t], 2);
+	  fg[0] += w_a_2*CppAD::pow(vars[a_start + t + 1] - vars[a_start + t], 2);
 	}
     fg[1 + x_start] = vars[x_start];
     fg[1 + y_start] = vars[y_start];
@@ -108,8 +116,8 @@ class FG_eval {
       
       //f0 and psides0 calcultation
       //Since polynomial is fit to 3rd degree
-      AD<double> f0 = coeffs[0] + (coeffs[1] * x0) + (coeffs[2] * x0 * x0) + (coeffs[3] * x0 * x0 * x0);
-      AD<double> psides0 = CppAD::atan((3 * coeffs[3] * x0 * x0) + (2 * coeffs[2] * x0) + coeffs[1]);
+      AD<double> f0 = coeffs[0] + coeffs[1] * x0+ coeffs[2] * x0* x0+ coeffs[3] * x0* x0* x0;
+	  AD<double> psides0 = CppAD::atan(3*coeffs[3] *x0 *x0+2*coeffs[2] *x0+coeffs[1]);
 
       // Here's `x` to get you started.
       // The idea here is to constraint this value to be 0.
@@ -154,7 +162,7 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Initial value of the independent variables.
   // SHOULD BE 0 besides initial state.
   Dvector vars(n_vars);
-  for (int i = 0; i < n_vars; i++) {
+  for (unsigned int i = 0; i < n_vars; i++) {
     vars[i] = 0;
   }
    // Set the initial variable values
@@ -176,14 +184,14 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
  // The upper and lower limits of delta are set to -25 and 25
   // degrees (values in radians).
   // NOTE: Feel free to change this to something else.
-  for (int i = delta_start; i < a_start; i++) {
+  for (unsigned int i = delta_start; i < a_start; i++) {
     vars_lowerbound[i] = -0.436332;
     vars_upperbound[i] = 0.436332;
   }
 
   // Acceleration/decceleration upper and lower limits.
   // NOTE: Feel free to change this to something else.
-  for (int i = a_start; i < n_vars; i++) {
+  for (unsigned int i = a_start; i < n_vars; i++) {
     vars_lowerbound[i] = -1.0;
     vars_upperbound[i] = 1.0;
 }
@@ -191,11 +199,11 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // Should be 0 besides initial state.
   Dvector constraints_lowerbound(n_constraints);
   Dvector constraints_upperbound(n_constraints);
-  for (int i = 0; i < n_constraints; i++) {
+  for (unsigned int i = 0; i < n_constraints; i++) {
     constraints_lowerbound[i] = 0;
     constraints_upperbound[i] = 0;
   }
-     constraints_lowerbound[x_start] = x;
+    constraints_lowerbound[x_start] = x;
 	constraints_lowerbound[y_start] = y;
 	constraints_lowerbound[psi_start] = psi;
 	constraints_lowerbound[v_start] = v;
@@ -254,10 +262,10 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   result.push_back(solution.x[delta_start]);
   result.push_back(solution.x[a_start]);
 
-  for (int i = 0; i < N-1; i++) {
+  for (unsigned int i = 0; i < N-1; i++) {
     result.push_back(solution.x[x_start + i + 1]);
     result.push_back(solution.x[y_start + i + 1]);
   }
 
-  return {};
+  return result;
 }
